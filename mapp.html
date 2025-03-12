@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Meeting Spot Finder</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- Leaflet Routing Machine CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { height: 100vh; }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 50px;
+      z-index: 1000;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    }
+    #controls button {
+      margin: 5px 0;
+      width: 120px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="controls">
+    <button id="calculateRoutes">Calculate Routes</button>
+    <br>
+    <button id="clearMarkers">Clear Markers</button>
+    <p>
+      Click on the map to add friend locations (max 5).<br>
+      Drag markers to adjust positions. The blue circle (250m radius) shows the centroid.
+    </p>
+  </div>
+  
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Leaflet Routing Machine JS -->
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+  <script>
+    // Initialize the map centered on Berlin
+    var map = L.map('map').setView([52.5200, 13.4050], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    
+    // Arrays to store friend markers and routing controls
+    var friendMarkers = [];
+    var routingControls = [];
+    var centroidCircle = null;
+    
+    // Function to update the centroid and display a transparent circle
+    function updateCentroid() {
+      if (friendMarkers.length === 0) {
+        if (centroidCircle) {
+          map.removeLayer(centroidCircle);
+          centroidCircle = null;
+        }
+        return;
+      }
+      var sumLat = 0, sumLng = 0;
+      friendMarkers.forEach(function(marker) {
+        var pos = marker.getLatLng();
+        sumLat += pos.lat;
+        sumLng += pos.lng;
+      });
+      var centroidLat = sumLat / friendMarkers.length;
+      var centroidLng = sumLng / friendMarkers.length;
+      var centroid = L.latLng(centroidLat, centroidLng);
+      
+      if (centroidCircle) {
+        centroidCircle.setLatLng(centroid);
+      } else {
+        centroidCircle = L.circle(centroid, {
+          radius: 250,
+          color: 'blue',
+          fillColor: 'blue',
+          fillOpacity: 0.2
+        }).addTo(map);
+      }
+    }
+    
+    // Add friend marker on map click (up to 5 markers)
+    map.on('click', function(e) {
+      if (friendMarkers.length >= 5) {
+        alert('Maximum of 5 friend locations allowed.');
+        return;
+      }
+      var marker = L.marker(e.latlng, {draggable: true}).addTo(map);
+      marker.on('dragend', updateCentroid);
+      friendMarkers.push(marker);
+      updateCentroid();
+    });
+    
+    // Button to clear all markers, routes, and centroid circle
+    document.getElementById('clearMarkers').onclick = function() {
+      friendMarkers.forEach(function(marker) {
+        map.removeLayer(marker);
+      });
+      friendMarkers = [];
+      if (centroidCircle) {
+        map.removeLayer(centroidCircle);
+        centroidCircle = null;
+      }
+      routingControls.forEach(function(control) {
+        map.removeControl(control);
+      });
+      routingControls = [];
+    };
+    
+    // Button to calculate and display routes from each friend marker to the centroid
+    document.getElementById('calculateRoutes').onclick = function() {
+      if (friendMarkers.length === 0 || !centroidCircle) {
+        alert('Please add at least one friend location by clicking on the map.');
+        return;
+      }
+      // Remove any previous routing controls
+      routingControls.forEach(function(control) {
+        map.removeControl(control);
+      });
+      routingControls = [];
+      
+      var centroid = centroidCircle.getLatLng();
+      friendMarkers.forEach(function(marker) {
+        var routeControl = L.Routing.control({
+          waypoints: [
+            marker.getLatLng(),
+            centroid
+          ],
+          lineOptions: {
+            addWaypoints: false,
+            styles: [{color: 'red', opacity: 0.8, weight: 4}]
+          },
+          createMarker: function() { return null; },
+          addWaypoints: false,
+          draggableWaypoints: false,
+          fitSelectedRoute: false,
+          routeWhileDragging: false,
+          show: false
+        }).addTo(map);
+        routingControls.push(routeControl);
+      });
+    };
+  </script>
+</body>
+</html>
