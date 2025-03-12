@@ -8,34 +8,62 @@
   <!-- Leaflet Routing Machine CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
   <style>
-    body { margin: 0; padding: 0; }
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f0f0f0; }
     #map { height: 100vh; }
     #controls {
       position: absolute;
       top: 10px;
-      left: 50px;
+      left: 10px;
       z-index: 1000;
       background: white;
-      padding: 10px;
-      border-radius: 5px;
-      box-shadow: 0 0 5px rgba(0,0,0,0.5);
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      width: 250px;
+    }
+    #controls h2 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #333;
     }
     #controls button {
       margin: 5px 0;
-      width: 120px;
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      background-color: #0078A8;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #controls button:hover {
+      background-color: #005f80;
+    }
+    #routeInfo {
+      margin-top: 10px;
+      background: #eef;
+      padding: 8px;
+      border-radius: 4px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-size: 13px;
+    }
+    #routeInfo p {
+      margin: 5px 0;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div id="controls">
+    <h2>Meeting Spot Finder</h2>
     <button id="calculateRoutes">Calculate Routes</button>
-    <br>
     <button id="clearMarkers">Clear Markers</button>
-    <p>
-      Click on the map to add friend locations (max 5).<br>
-      Drag markers to adjust positions. The blue circle (250m radius) shows the centroid.
-    </p>
+    <div id="routeInfo">
+      <p>Click on the map to add friend locations (max 5).</p>
+      <p>Drag markers to adjust positions. A blue circle (250m radius) shows the centroid.</p>
+    </div>
   </div>
   
   <!-- Leaflet JS -->
@@ -49,12 +77,11 @@
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
     
-    // Arrays to store friend markers and routing controls
     var friendMarkers = [];
     var routingControls = [];
     var centroidCircle = null;
     
-    // Function to update the centroid and display a transparent circle
+    // Update the centroid (average point) and draw a blue circle (250m radius)
     function updateCentroid() {
       if (friendMarkers.length === 0) {
         if (centroidCircle) {
@@ -85,7 +112,7 @@
       }
     }
     
-    // Add friend marker on map click (up to 5 markers)
+    // Add a friend marker on map click (up to 5 markers)
     map.on('click', function(e) {
       if (friendMarkers.length >= 5) {
         alert('Maximum of 5 friend locations allowed.');
@@ -97,7 +124,7 @@
       updateCentroid();
     });
     
-    // Button to clear all markers, routes, and centroid circle
+    // Clear all friend markers, routes, and the centroid circle
     document.getElementById('clearMarkers').onclick = function() {
       friendMarkers.forEach(function(marker) {
         map.removeLayer(marker);
@@ -111,22 +138,24 @@
         map.removeControl(control);
       });
       routingControls = [];
+      document.getElementById('routeInfo').innerHTML = '<p>Click on the map to add friend locations (max 5).</p><p>Drag markers to adjust positions. A blue circle (250m radius) shows the centroid.</p>';
     };
     
-    // Button to calculate and display routes from each friend marker to the centroid
+    // Calculate and display routes with travel times/distance info
     document.getElementById('calculateRoutes').onclick = function() {
       if (friendMarkers.length === 0 || !centroidCircle) {
         alert('Please add at least one friend location by clicking on the map.');
         return;
       }
-      // Remove any previous routing controls
+      // Remove previous routes and clear the info panel
       routingControls.forEach(function(control) {
         map.removeControl(control);
       });
       routingControls = [];
+      document.getElementById('routeInfo').innerHTML = '';
       
       var centroid = centroidCircle.getLatLng();
-      friendMarkers.forEach(function(marker) {
+      friendMarkers.forEach(function(marker, index) {
         var routeControl = L.Routing.control({
           waypoints: [
             marker.getLatLng(),
@@ -143,6 +172,18 @@
           routeWhileDragging: false,
           show: false
         }).addTo(map);
+        routeControl.on('routesfound', function(e) {
+          var route = e.routes[0];
+          var timeMinutes = Math.round(route.summary.totalTime / 60);
+          var distanceKm = (route.summary.totalDistance / 1000).toFixed(2);
+          var infoText = 'Route from friend ' + (index + 1) + ': ' + timeMinutes + ' min, ' + distanceKm + ' km';
+          // Display the info in the route info panel
+          var p = document.createElement('p');
+          p.innerText = infoText;
+          document.getElementById('routeInfo').appendChild(p);
+          // Bind a popup with travel info to the friend marker
+          marker.bindPopup(infoText).openPopup();
+        });
         routingControls.push(routeControl);
       });
     };
